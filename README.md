@@ -22,7 +22,8 @@ The files are exported to the same directory as the *.indd files withe same name
 Disclaimer
 -----
 	Use my scripts at your own risk! I am not responsible for any damages to your InDesign Documents!
-	With my Repositories I just want to give the world back what I have got from others who share their code – usable, productive AppleScripts!
+	With my Repositories I just want to give the world back what I have got from others who share their code – 
+    usable, productive AppleScripts!
 
 Contributing
 ------------
@@ -32,7 +33,7 @@ File-Formats
 -----------
     Normally, in InDesign, I use the *.scpt format because it it precompiled but at the same time contains the code and is viewable via QuickLook. 
     I'm also commiting an *.applescript file, just because it it readable (If you just want to take a look) on github and the precompiled is not.
-    They should be in sync, always.
+    Both types are usually commited together – always – if not, then it wasn't necessary.
     
 Localization
 -----------
