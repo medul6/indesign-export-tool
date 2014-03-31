@@ -1,5 +1,5 @@
 -- ExportTool for InDesign
--- version 1.9.2.4
+-- version 1.9.2.5
 
 -- created by medul6, Michael Heck, 2012
 -- open sourced on September 7th, 2012 on Github > check the LICENSE.txt and README.md in the repository for detailed information
@@ -124,8 +124,12 @@ on pdfExporterMultipage(functionChoice)
 	set chosenPreset to choose from list pdfPresetsOnComputer default items chosenPreset with prompt "PDF-Preset wählen:" OK button name buttonName
 	if chosenPreset is not false then
 		if chosenPreset is not {"sk-Temporär"} then
-			display dialog "Welche Seiten sollen exportiert werden?" & return & "(Wenn alle, dann 'all pages')" default answer pageRange
-			set pageRange to (text returned of result)
+			display dialog "Welche Seiten sollen exportiert werden?" & return & "(Wenn alle, dann 'all pages')" default answer pageRange buttons {"All Pages", "Weiter!"} default button "Weiter!"
+			if button returned of result is "Weiter!" then
+				set pageRange to (text returned of result)
+			else
+				set pageRange to "all pages"
+			end if
 		else
 			set pageRange to "all pages"
 		end if
