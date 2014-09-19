@@ -1,336 +1,1 @@
--- ExportTool for InDesign
--- version 1.9.2.5
-
--- created by medul6, Michael Heck, 2012
--- open sourced on September 7th, 2012 on Github > check the LICENSE.txt and README.md in the repository for detailed information
--- https://github.com/medul6/indesign-export-tool
-
--- ¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥
-
--- global variables
-global activeDocument
-global openDocuments
-global activeWindow
-global pdfPresetsOnComputer
-global preservedPageRange
-global stopBool
-global splittedRange
-
-global textOverflows
-
---test variables!!!
---global filePath
---global chosenPresetText
---global docName
---global newFilePath
---global pathItems
---global pageRange
---global newdocName
---global failedLinks
---global textOverflows
---global modifiedLinks
---global missingLinks
---global exportPreset
-
---properties!
-property functionChoice : {"PDF-Export"}
-property chosenPreset : {"sk-Screen"}
-property pageRange : "all pages"
-
--- ¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥
-
-tell application id "com.adobe.InDesign"
-	
-	-- set up some informations from the current state as variables
-	set activeDocument to active document
-	set activeWindow to active window
-	set openDocuments to every document
-	-- only pdf presets are captured that are not build in. we have our own! remove the whose clause to show all of them, or modify the whose clause to show only them.
-	set pdfPresetsOnComputer to name of every PDF export preset whose name does not contain "["
-	
-	my linkCheck()
-	my textOverflowCheck()
-	
-	if stopBool is true then
-		my functionChooser()
-	end if
-	
-end tell
-
--- ¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥
-
-on functionChooser()
-	set functionChoice to choose from list {"PDF-Export (Einzelseiten)", "PDF-Export (Mehrseitig)", "IDML-Export"} default items functionChoice with prompt "Funktion wŠhlen:" OK button name "Weiter!"
-	
-	if the functionChoice = {"PDF-Export (Einzelseiten)"} then
-		pdfExporterSinglepage(functionChoice) of me
-	else if the functionChoice = {"PDF-Export (Mehrseitig)"} then
-		pdfExporterMultipage(functionChoice) of me
-	else if the functionChoice = {"IDML-Export"} then
-		idmlExporter(functionChoice) of me
-	end if
-	
-end functionChooser
-
--- ¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥
-
-on pdfExporterSinglepage(functionChoice)
-	set buttonName to functionChoice & "!" as text
-	set chosenPreset to choose from list pdfPresetsOnComputer default items chosenPreset with prompt "PDF-Preset wŠhlen:" OK button name buttonName
-	if chosenPreset is not false then
-		display dialog "Welche Seiten sollen exportiert werden?" & return & "NUR kommagestrennte Werte eintragen! z.B. '1,2,5,6'" default answer pageRange
-		set InputRange to (text returned of result)
-		
-		InputRangeSplitter(InputRange)
-		
-		--hier sollte die splittedRange noch gecleaned werden
-		--my splittedRangeCleaner(splittedRange)
-		
-		tell application id "com.adobe.InDesign"
-			
-			repeat with x from 1 to count splittedRange -- this iterates through all pages
-				
-				my pageRanger(splittedRange's item x)
-				
-				set docName to name of activeDocument
-				set newdocName to my fileExtensionRemover(docName)
-				set filePath to (file path of activeDocument as string)
-				set exportPreset to PDF export preset (chosenPreset as string)
-				
-				asynchronous export file activeDocument format PDF type to (filePath & newdocName & " s" & (splittedRange's item x) & ".pdf") using exportPreset without showing options
-				
-			end repeat
-			
-			
-			tell PDF export preferences
-				set page range to preservedPageRange -- always restore original preferences
-			end tell
-			
-			--wait for all tasks
-			
-		end tell
-		
-		if chosenPreset is not {"sk-TemporŠr"} then
-			my displayTheEnd()
-		end if
-		
-	end if
-end pdfExporterSinglepage
-
--- ¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥
-
-on pdfExporterMultipage(functionChoice)
-	set buttonName to functionChoice & "!" as text
-	set chosenPreset to choose from list pdfPresetsOnComputer default items chosenPreset with prompt "PDF-Preset wŠhlen:" OK button name buttonName
-	if chosenPreset is not false then
-		if chosenPreset is not {"sk-TemporŠr"} then
-			display dialog "Welche Seiten sollen exportiert werden?" & return & "(Wenn alle, dann 'all pages')" default answer pageRange buttons {"All Pages", "Weiter!"} default button "Weiter!"
-			if button returned of result is "Weiter!" then
-				set pageRange to (text returned of result)
-			else
-				set pageRange to "all pages"
-			end if
-		else
-			set pageRange to "all pages"
-		end if
-		
-		my pageRanger(pageRange)
-		
-		tell application id "com.adobe.InDesign"
-			
-			repeat with x from 1 to count openDocuments -- this iterates through all open documents
-				
-				set docName to name of openDocuments's item x
-				set newdocName to my fileExtensionRemover(docName)
-				set filePath to (file path of openDocuments's item x as string)
-				set exportPreset to PDF export preset (chosenPreset as string)
-				
-				if chosenPreset is {"sk-TemporŠr"} then
-					asynchronous export file openDocuments's item x format PDF type to (filePath & newdocName & ".pdf") using exportPreset showing options yes
-				else
-					asynchronous export file openDocuments's item x format PDF type to (filePath & newdocName & ".pdf") using exportPreset without showing options
-				end if
-				
-			end repeat
-			
-			
-			tell PDF export preferences
-				set page range to preservedPageRange -- always restore original preferences
-			end tell
-			
-			--wait for all tasks
-			
-		end tell
-		
-		if chosenPreset is not {"sk-TemporŠr"} then
-			my displayTheEnd()
-		end if
-		
-	end if
-end pdfExporterMultipage
-
--- ¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥
-
-on idmlExporter(functionChoice)
-	tell application id "com.adobe.InDesign"
-		repeat with x from 1 to count openDocuments -- this iterates through all open documents
-			
-			set docName to name of openDocuments's item x
-			set newdocName to my fileExtensionRemover(docName)
-			set filePath to (file path of openDocuments's item x as string)
-			
-			asynchronous export file openDocuments's item x format InDesign markup to (filePath & newdocName & ".idml")
-			
-		end repeat
-	end tell
-	my displayTheEnd()
-end idmlExporter
-
--- ¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥
-
-on fileExtensionRemover(docName)
-	set oldDelimiters to AppleScript's text item delimiters -- always preserve original delimiters
-	set AppleScript's text item delimiters to {"."}
-	set pathItems to text items of (docName as text)
-	if (count pathItems) > "2" then
-		set pathItems to items 1 thru -2 of pathItems
-	else
-		set pathItems to item 1 of pathItems
-	end if
-	set newdocName to pathItems as string
-	set AppleScript's text item delimiters to oldDelimiters -- always restore original delimiters
-	return newdocName
-end fileExtensionRemover
-
--- ¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥
-
-on pageRanger(pageRange)
-	tell application id "com.adobe.InDesign"
-		tell PDF export preferences
-			set preservedPageRange to page range -- always preserve original preferences 
-		end tell
-		
-		tell PDF export preferences
-			set page range to pageRange
-		end tell
-	end tell
-end pageRanger
-
--- ¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥
-
--- ¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥
-
-on linkCheck()
-	tell application id "com.adobe.InDesign"
-		
-		set stopBool to true
-		set linkCheckBool to true
-		
-		repeat with x from 1 to count openDocuments
-			--out of date/missing link check
-			set missingLinks to (every link of openDocuments's item x whose status contains link missing)
-			set modifiedLinks to (every link of openDocuments's item x whose status contains link out of date)
-			set failedLinks to missingLinks & modifiedLinks
-			if (count failedLinks) is not equal to 0 then
-				set linkCheckBool to false
-			end if
-			if linkCheckBool is false then
-				display dialog "Dokument hat modifizierte oder fehlende Links! " & return & "-----------------------------------------" & return & (name of openDocuments's item x) & return & "-----------------------------------------" & return & "hat modifizierte oder fehlende Links!" buttons {"Stop!", "Weiter!"} default button "Weiter!"
-			end if
-			try
-				if button returned of result is "Stop!" then
-					set stopBool to false
-				end if
-			end try
-		end repeat
-		
-	end tell
-end linkCheck
-
--- ¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥
-
-on textOverflowCheck()
-	tell application id "com.adobe.InDesign"
-		
-		set stopBool to true
-		set textCheckBool to true
-		
-		repeat with x from 1 to count openDocuments
-			--text overflow check
-			--set textOverflows to (every text frame of openDocuments's item x whose overflows is true) --this checks all layers, visible or not
-			set textOverflows to (every text frame of openDocuments's item x whose overflows is true and item layer's visible is true) --this just checks visible layers
-			--set missingLinks to (every link of openDocuments's item x whose status contains link missing)
-			--set modifiedLinks to (every link of openDocuments's item x whose status contains link out of date)
-			--set failedLinks to missingLinks & modifiedLinks
-			if (count textOverflows) is not equal to 0 then
-				set textCheckBool to false
-			end if
-			if textCheckBool is false then
-				display dialog "Dokument hat TextŸberhang! " & return & "-----------------------------------------" & return & (name of openDocuments's item x) & return & "-----------------------------------------" & return & "hat TextŸberhang. Das sk-InDesign-Skript ÈgoToFirstTextOverflowÇ findet †berhŠnge!" buttons {"Stop!", "Gehe zu erster Stelle!", "Weiter!"} default button "Weiter!"
-			end if
-			try
-				if button returned of result is "Stop!" then
-					set stopBool to false
-				else if button returned of result is "Gehe zu erster Stelle!" then
-					my textOverflowGoer()
-					my zoomThePages(activeWindow)
-					set stopBool to false
-				end if
-			end try
-		end repeat
-		
-	end tell
-end textOverflowCheck
-
--- ¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥
-
-on InputRangeSplitter(InputRange)
-	set oldDelimiters to AppleScript's text item delimiters -- always preserve original delimiters
-	set AppleScript's text item delimiters to {","}
-	set splittedRange to text items of InputRange
-	set AppleScript's text item delimiters to oldDelimiters -- always restore original delimiters
-	return splittedRange
-end InputRangeSplitter
-
--- ¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥
-
-on splittedRangeCleaner(splittedRange)
-	--
-end splittedRangeCleaner
-
--- ¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥
-
-on textOverflowGoer()
-	tell application id "com.adobe.InDesign"
-		
-		if (count textOverflows) is not equal to 0 then
-			set activePage to name of parent page of first item of textOverflows
-			set active page of activeWindow to page activePage of parent of activeWindow
-		else
-			beep (3)
-		end if
-	end tell
-	
-end textOverflowGoer
-
--- ¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥
-
-on zoomThePages(theWindow)
-	tell application id "com.adobe.InDesign"
-		
-		tell theWindow
-			select nothing
-			zoom given fit page --spread
-			if (count textOverflows) is not equal to 0 then
-				set selection of activeWindow to first item of textOverflows
-			end if
-		end tell
-		
-	end tell
-end zoomThePages
-
--- ¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥¥
-
-on displayTheEnd()
-	display dialog "Der Export wird jetzt im Hintergrund ausgefŸhrt" buttons "OK" default button "OK" giving up after 1
-end displayTheEnd
+-- ExportTool for InDesign-- version 1.9.2.6-- created by medul6, Michael Heck, 2012-- open sourced on September 7th, 2012 on Github > check the LICENSE.txt and README.md in the repository for detailed information-- https://github.com/medul6/indesign-export-tool-- â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢-- global variablesglobal activeDocumentglobal openDocumentsglobal activeWindowglobal pdfPresetsOnComputerglobal preservedPageRangeglobal stopBoolglobal splittedRangeglobal textOverflows--test variables!!!--global filePath--global chosenPresetText--global docName--global newFilePath--global pathItems--global pageRange--global newdocName--global failedLinks--global textOverflows--global modifiedLinks--global missingLinks--global exportPreset--properties!property functionChoice : {"PDF-Export"}property chosenPreset : {"sk-Screen"}property pageRange : "all pages"-- â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢tell application id "com.adobe.InDesign"		-- set up some informations from the current state as variables	set activeDocument to active document	set activeWindow to active window	set openDocuments to every document	-- only pdf presets are captured that are not build in. we have our own! remove the whose clause to show all of them, or modify the whose clause to show only them.	set pdfPresetsOnComputer to name of every PDF export preset whose name does not contain "["		my linkCheck()	my textOverflowCheck()		if stopBool is true then		my functionChooser()	end if	end tell-- â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢on functionChooser()	set functionChoice to choose from list {"PDF-Export (Einzelseiten)", "PDF-Export (Mehrseitig)", "IDML-Export"} default items functionChoice with prompt "Funktion wÃ¤hlen:" OK button name "Weiter!"		if the functionChoice = {"PDF-Export (Einzelseiten)"} then		pdfExporterSinglepage(functionChoice) of me	else if the functionChoice = {"PDF-Export (Mehrseitig)"} then		pdfExporterMultipage(functionChoice) of me	else if the functionChoice = {"IDML-Export"} then		idmlExporter(functionChoice) of me	end if	end functionChooser-- â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢on pdfExporterSinglepage(functionChoice)	set buttonName to functionChoice & "!" as text	set chosenPreset to choose from list pdfPresetsOnComputer default items chosenPreset with prompt "PDF-Preset wÃ¤hlen:" OK button name buttonName	if chosenPreset is not false then		display dialog "Welche Seiten sollen exportiert werden?" & return & "NUR kommagestrennte Werte eintragen! z.B. '1,2,5,6'" default answer pageRange		set inputRange to (text returned of result)				inputRangeSplitter(inputRange)				--hier sollte die splittedRange noch gecleaned werden		--my splittedRangeCleaner(splittedRange)				tell application id "com.adobe.InDesign"						repeat with x from 1 to count splittedRange -- this iterates through all pages								my pageRanger(splittedRange's item x)								set docName to name of activeDocument				set newdocName to my fileExtensionRemover(docName)				set filePath to (file path of activeDocument as string)				set exportPreset to PDF export preset (chosenPreset as string)								asynchronous export file activeDocument format PDF type to (filePath & newdocName & " s" & (splittedRange's item x) & ".pdf") using exportPreset without showing options							end repeat									tell PDF export preferences				set page range to preservedPageRange -- always restore original preferences			end tell						--wait for all tasks					end tell				if chosenPreset is not {"sk-TemporÃ¤r"} then			--my displayTheEnd()			--my displayNotificationShort("PDF Export gestartet", "Dokument: " & newdocName)			my displayNotificationLong("PDF Export gestartet", ((item 1 of chosenPreset) as string), "Dokument: " & newdocName)		end if			end ifend pdfExporterSinglepage-- â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢on pdfExporterMultipage(functionChoice)	set buttonName to functionChoice & "!" as text	set chosenPreset to choose from list pdfPresetsOnComputer default items chosenPreset with prompt "PDF-Preset wÃ¤hlen:" OK button name buttonName	if chosenPreset is not false then		if chosenPreset is not {"sk-TemporÃ¤r"} then			display dialog "Welche Seiten sollen exportiert werden?" & return & "(Wenn alle, dann 'all pages')" default answer pageRange buttons {"All Pages", "Weiter!"} default button "Weiter!"			if button returned of result is "Weiter!" then				set pageRange to (text returned of result)			else				set pageRange to "all pages"			end if		else			set pageRange to "all pages"		end if				my pageRanger(pageRange)				tell application id "com.adobe.InDesign"						repeat with x from 1 to count openDocuments -- this iterates through all open documents								set docName to name of openDocuments's item x				set newdocName to my fileExtensionRemover(docName)				set filePath to (file path of openDocuments's item x as string)				set exportPreset to PDF export preset (chosenPreset as string)								if chosenPreset is {"sk-TemporÃ¤r"} then					-- this is temporarily disabled, because it just doesn't work that way :)					--asynchronous export file openDocuments's item x format PDF type to (filePath & newdocName & ".pdf") using exportPreset showing options yes					asynchronous export file openDocuments's item x format PDF type to (filePath & newdocName & ".pdf") using exportPreset without showing options				else					asynchronous export file openDocuments's item x format PDF type to (filePath & newdocName & ".pdf") using exportPreset without showing options				end if							end repeat									tell PDF export preferences				set page range to preservedPageRange -- always restore original preferences			end tell						--wait for all tasks					end tell				if chosenPreset is not {"sk-TemporÃ¤r"} then			--my displayTheEnd()			--my displayNotificationShort("PDF Export gestartet", ((count openDocuments) as string) & " Dokument(e) exportiert")			my displayNotificationLong("PDF Export gestartet", ((item 1 of chosenPreset) as string), ((count openDocuments) as string) & " Dokument(e) exportiert")		end if			end ifend pdfExporterMultipage-- â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢on idmlExporter(functionChoice)	tell application id "com.adobe.InDesign"		repeat with x from 1 to count openDocuments -- this iterates through all open documents						set docName to name of openDocuments's item x			set newdocName to my fileExtensionRemover(docName)			set filePath to (file path of openDocuments's item x as string)						asynchronous export file openDocuments's item x format InDesign markup to (filePath & newdocName & ".idml")					end repeat	end tell	--my displayTheEnd()	--my displayNotificationShort("IDML Export gestartet", ((count openDocuments) as string) & " Dokument(e) exportiert")	my displayNotificationLong("IDML Export gestartet", "Subtitle text", ((count openDocuments) as string) & " Dokument(e) exportiert")end idmlExporter-- â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢on fileExtensionRemover(docName)	set oldDelimiters to AppleScript's text item delimiters -- always preserve original delimiters	set AppleScript's text item delimiters to {"."}	set pathItems to text items of (docName as text)	if (count pathItems) > "2" then		set pathItems to items 1 thru -2 of pathItems	else		set pathItems to item 1 of pathItems	end if	set newdocName to pathItems as string	set AppleScript's text item delimiters to oldDelimiters -- always restore original delimiters	return newdocNameend fileExtensionRemover-- â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢on pageRanger(pageRange)	tell application id "com.adobe.InDesign"		tell PDF export preferences			set preservedPageRange to page range -- always preserve original preferences 		end tell				tell PDF export preferences			set page range to pageRange		end tell	end tellend pageRanger-- â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢-- â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢on linkCheck()	tell application id "com.adobe.InDesign"				set stopBool to true		set linkCheckBool to true				repeat with x from 1 to count openDocuments			--out of date/missing link check			set missingLinks to (every link of openDocuments's item x whose status contains link missing)			set modifiedLinks to (every link of openDocuments's item x whose status contains link out of date)			set failedLinks to missingLinks & modifiedLinks			if (count failedLinks) is not equal to 0 then				set linkCheckBool to false			end if			if linkCheckBool is false then				display dialog "Dokument hat modifizierte oder fehlende Links! " & return & "-----------------------------------------" & return & (name of openDocuments's item x) & return & "-----------------------------------------" & return & "hat modifizierte oder fehlende Links!" buttons {"Stop!", "Weiter!"} default button "Weiter!"			end if			try				if button returned of result is "Stop!" then					set stopBool to false				end if			end try		end repeat			end tellend linkCheck-- â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢on textOverflowCheck()	tell application id "com.adobe.InDesign"				set stopBool to true		set textCheckBool to true				repeat with x from 1 to count openDocuments			--text overflow check			--set textOverflows to (every text frame of openDocuments's item x whose overflows is true) --this checks all layers, visible or not			set textOverflows to (every text frame of openDocuments's item x whose overflows is true and item layer's visible is true) --this just checks visible layers			--set missingLinks to (every link of openDocuments's item x whose status contains link missing)			--set modifiedLinks to (every link of openDocuments's item x whose status contains link out of date)			--set failedLinks to missingLinks & modifiedLinks			if (count textOverflows) is not equal to 0 then				set textCheckBool to false			end if			if textCheckBool is false then				display dialog "Dokument hat TextÃ¼berhang! " & return & "-----------------------------------------" & return & (name of openDocuments's item x) & return & "-----------------------------------------" & return & "hat TextÃ¼berhang. Das sk-InDesign-Skript Â»goToFirstTextOverflowÂ« findet ÃœberhÃ¤nge!" buttons {"Stop!", "Gehe zu erster Stelle!", "Weiter!"} default button "Weiter!"			end if			try				if button returned of result is "Stop!" then					set stopBool to false				else if button returned of result is "Gehe zu erster Stelle!" then					my textOverflowGoer()					my zoomThePages(activeWindow)					set stopBool to false				end if			end try		end repeat			end tellend textOverflowCheck-- â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢on inputRangeSplitter(inputRange)	set oldDelimiters to AppleScript's text item delimiters -- always preserve original delimiters	set AppleScript's text item delimiters to {","}	set splittedRange to text items of inputRange	set AppleScript's text item delimiters to oldDelimiters -- always restore original delimiters	return splittedRangeend inputRangeSplitter-- â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢on splittedRangeCleaner(splittedRange)	--end splittedRangeCleaner-- â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢on textOverflowGoer()	tell application id "com.adobe.InDesign"				if (count textOverflows) is not equal to 0 then			set activePage to name of parent page of first item of textOverflows			set active page of activeWindow to page activePage of parent of activeWindow		else			beep (3)		end if	end tell	end textOverflowGoer-- â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢on zoomThePages(theWindow)	tell application id "com.adobe.InDesign"				tell theWindow			select nothing			zoom given fit page --spread			if (count textOverflows) is not equal to 0 then				set selection of activeWindow to first item of textOverflows			end if		end tell			end tellend zoomThePages-- â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢on displayTheEnd()	display dialog "Der Export wird jetzt im Hintergrund ausgefÃ¼hrt" buttons "OK" default button "OK" giving up after 1end displayTheEnd-- â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢--my displayNotificationLong("Title text", "Subtitle text", "Body text")on displayNotificationLong(titleText, subtitleText, bodyText)	display notification bodyText with title titleText subtitle subtitleText --sound name "default"	--delay 0.5end displayNotificationLong-- â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢--my displayNotificationShort("Title text", "Body text")on displayNotificationShort(titleText, bodyText)	display notification bodyText with title titleText --sound name "default"	--delay 0.5end displayNotificationShort
