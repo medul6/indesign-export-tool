@@ -1,5 +1,5 @@
 -- ExportTool for InDesign
--- version 1.9.2.10
+-- version 1.9.2.11
 
 -- created by medul6, Michael Heck, 2012
 -- open sourced on September 7th, 2012 on Github > check the LICENSE.txt and README.md in the repository for detailed information
@@ -127,6 +127,11 @@ on pdfExporterSinglepage(functionChoice)
 				--my displayTheEnd()
 				--my displayNotificationShort("PDF Export gestartet", "Dokument: " & newdocName)
 				my displayNotificationLong("PDF Export gestartet", ((item 1 of chosenPreset) as string), "Dokument: " & newdocName)
+				tell application id "com.adobe.InDesign"
+					if not (exists (every event listener whose event type is equal to "afterExport")) then
+						make event listener with properties {event type:"afterExport", handler:my myAfterExportNotificationHandler}
+					end if
+				end tell
 			end if
 		else
 			return
@@ -189,7 +194,12 @@ on pdfExporterMultipage(functionChoice)
 		if chosenPreset is not {"sk-TemporКr"} then
 			--my displayTheEnd()
 			--my displayNotificationShort("PDF Export gestartet", ((count openDocuments) as string) & " Dokument(e) exportiert")
-			my displayNotificationLong("PDF Export gestartet", ((item 1 of chosenPreset) as string), ((count openDocuments) as string) & " Dokument(e) exportiert")
+			my displayNotificationLong("PDF Export gestartet", ((item 1 of chosenPreset) as string), ((count openDocuments) as string) & " Dokument(e) werden exportiert")
+			tell application id "com.adobe.InDesign"
+				if not (exists (every event listener whose event type is equal to "afterExport")) then
+					make event listener with properties {event type:"afterExport", handler:my myAfterExportNotificationHandler}
+				end if
+			end tell
 		end if
 		
 		--end if
@@ -217,7 +227,12 @@ on idmlExporter(functionChoice)
 		end tell
 		--my displayTheEnd()
 		--my displayNotificationShort("IDML Export gestartet", ((count openDocuments) as string) & " Dokument(e) exportiert")
-		my displayNotificationLong("IDML Export gestartet", "Subtitle text", ((count openDocuments) as string) & " Dokument(e) exportiert")
+		my displayNotificationLong("IDML Export gestartet", "Subtitle text", ((count openDocuments) as string) & " Dokument(e) werden exportiert")
+		tell application id "com.adobe.InDesign"
+			if not (exists (every event listener whose event type is equal to "afterExport")) then
+				make event listener with properties {event type:"afterExport", handler:my myAfterExportNotificationHandler}
+			end if
+		end tell
 	else
 		return
 	end if
@@ -456,3 +471,15 @@ on displayNotificationShort(titleText, bodyText)
 	display notification bodyText with title titleText --sound name "default"
 	--delay 0.5
 end displayNotificationShort
+
+-- еееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееееее
+
+on myAfterExportNotificationHandler()
+	tell application id "com.adobe.InDesign"
+		--"evt" is the event passed to this script by the event listener.
+		set myEvent to evt
+		--display dialog ("This event is the " & event type of myEvent & " event.")
+		set myString to "Export beendet: " & name of target of myEvent
+		display notification myString --with title "Body text"
+	end tell
+end myAfterExportNotificationHandler
